@@ -58,6 +58,22 @@ class AppSettingsViewController: UITableViewController, TKMViewController {
         })
     }
 
+    model.add(section: "Custom API URL")
+    let apiUrlItem =
+      EditableTextModelItem(text: NSAttributedString(string: Settings.apiUrl),
+                            placeholderText: "https://api.wanikani.com/v2",
+                            rightButtonImage: nil,
+                            font: UIFont.systemFont(ofSize: kFontSize),
+                            autoCapitalizationType: .none,
+                            maximumNumberOfLines: 1)
+    apiUrlItem.textChangedCallback = { (text: String) in
+      Settings.apiUrl = text
+      if text.isEmpty {
+        Settings.customApiToken = ""
+      }
+    }
+    model.add(apiUrlItem)
+
     model.add(section: "Custom Gravatar email address")
     let gravatarItem =
       EditableTextModelItem(text: NSAttributedString(string: Settings.gravatarCustomEmail),

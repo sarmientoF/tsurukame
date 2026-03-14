@@ -175,6 +175,8 @@ protocol SettingProtocol {
   @Setting("", #keyPath(userCookie)) static var userCookie: String
   @Setting("", #keyPath(userEmailAddress)) static var userEmailAddress: String
   @Setting("", #keyPath(userApiToken)) static var userApiToken: String
+  @Setting("", #keyPath(apiUrl)) static var apiUrl: String
+  @Setting("", #keyPath(customApiToken)) static var customApiToken: String
 
   @EnumSetting(InterfaceStyle.system,
                #keyPath(interfaceStyle)) static var interfaceStyle: InterfaceStyle

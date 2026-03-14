@@ -129,22 +129,71 @@ class LoginViewController: UIViewController, UITextFieldDelegate {
       }
     } else {
       let token = apiTokenField.text!
-      let apiClient = WaniKaniAPIClient(apiToken: token)
-      let promise = apiClient.user(progress: Progress())
-      promise.done { user in
-        NSLog("Login success! User is at level: \(user.currentLevel)")
-        Settings.userApiToken = token
-        Settings.userEmailAddress = ""
-        self.delegate?.loginComplete()
-      }.catch { err in
-        if let wkError = err as? WaniKaniAPIError,
-           wkError.message?.contains("hibernating") ?? false {
-          self.showHibernatingError()
-        } else {
-          self.showLoginError("Unable to login with API token! (\(err.localizedDescription))")
-        }
+      let customApiUrl = Settings.apiUrl
+
+      if !customApiUrl.isEmpty {
+        // Migrate the WaniKani API key to the custom backend and get a bearer token.
+        migrateToCustomBackend(wkToken: token, apiUrl: customApiUrl)
+      } else {
+        loginWithApiToken(token, apiUrl: nil)
       }
     }
+  }
+
+  private func loginWithApiToken(_ token: String, apiUrl: String?) {
+    let apiClient = WaniKaniAPIClient(apiToken: token, apiUrl: apiUrl)
+    let promise = apiClient.user(progress: Progress())
+    promise.done { user in
+      NSLog("Login success! User is at level: \(user.currentLevel)")
+      Settings.userApiToken = token
+      Settings.userEmailAddress = ""
+      self.delegate?.loginComplete()
+    }.catch { err in
+      if let wkError = err as? WaniKaniAPIError,
+         wkError.message?.contains("hibernating") ?? false {
+        self.showHibernatingError()
+      } else {
+        self.showLoginError("Unable to login with API token! (\(err.localizedDescription))")
+      }
+    }
+  }
+
+  private func migrateToCustomBackend(wkToken: String, apiUrl: String) {
+    guard let url = URL(string: "\(apiUrl)/migrate") else {
+      showLoginError("Invalid API URL: \(apiUrl)")
+      return
+    }
+
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+    let body: [String: String] = ["wanikani_api_key": wkToken]
+    guard let bodyData = try? JSONEncoder().encode(body) else {
+      showLoginError("Failed to encode migration request.")
+      return
+    }
+    request.httpBody = bodyData
+
+    let task = URLSession.shared.dataTask(with: request) { data, response, error in
+      if let error = error {
+        self.showLoginError("Migration request failed: \(error.localizedDescription)")
+        return
+      }
+
+      guard let data = data,
+            let json = try? JSONDecoder().decode([String: String].self, from: data),
+            let customToken = json["token"] else {
+        self.showLoginError("Migration response missing token.")
+        return
+      }
+
+      NSLog("Migration success! Got custom token.")
+      Settings.userApiToken = wkToken
+      Settings.customApiToken = customToken
+      self.loginWithApiToken(customToken, apiUrl: apiUrl)
+    }
+    task.resume()
   }
 
   @IBAction func didTapSwapLoginMethods() {
